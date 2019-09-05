@@ -117,7 +117,7 @@ class VideoPreProcessor(object):
             for category in categories:
                 n_frames.append(n_frames_json[category.name])
         except KeyError:
-            raise KeyError("Category {} has not been preprocessed yet", category.name)
+            raise KeyError("Category {} has not been preprocessed yet".format(category.name))
 
         return n_frames
 
@@ -138,6 +138,19 @@ class VideoPreProcessor(object):
             return None
 
         return n_frames[0]
+
+    def get_n_frames_category(self, category):
+        """Returns the number of frames of a category"""
+        try:
+            n_frames_json = self._get_json_n_frames()
+            n_frames_cat = n_frames_json[category.name]
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "n_frames.json missing. Please preprocess your videos again")
+        except KeyError:
+            raise KeyError("Category {} has not been preprocessed yet".format(category.name))
+
+        return n_frames_cat
 
     def _save_json_n_frames(self, category, n_frames):
         """Save the n_frame of the preprocessed category to the json file"""
