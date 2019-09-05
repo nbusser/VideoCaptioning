@@ -1,0 +1,7 @@
+*.ipynb
+*.ckpt
+*.pyc
+data/*
+Rapport/*
+doc/*
+__pycache__/*
