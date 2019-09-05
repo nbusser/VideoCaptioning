@@ -37,7 +37,7 @@ class ModelTrainer(ModelHandler):
             print("File will be saved in file {} at each progression".format(
                 self._model_saver.get_savefile_name()))
         else:
-            print("Model saver instance not found. Be careful, the training will not be saved !")
+            print("No ModelSaver instance provided. Be careful, the training will not be saved !")
 
         max_countdown = countdown
 
