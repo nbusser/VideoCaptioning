@@ -157,16 +157,34 @@ class ModelBuilder(object):
         return train_dataset, test_dataset
 
     def _prepare_datasets(self, train_dataset, test_dataset, batch_size, shuffle=True):
+        # Shuffles the train dataset
+        # Note: we should have performed this operation before the repeat operation
+        # Here, if the buffer size is not matching the length of the dataset (for big scale training),
+        # the model will see n_captions time the same video features before seeing every other features
+        # However, considering my implementation, it is complicated to shuffle before repeat operation
+        if shuffle:
+            def get_shuffle_buffer_size(videos_names, n_captions):
+                """Avoid OOM error when shuffling data
+
+                Having a too big buffer_size results to an OOM
+                It simply computes the min between an arbitrary reasonable value
+                and the length of the dataset
+                Ensures that reasonable value is higher than the batch_size, otherwise, some data
+                will not be shuffled
+                Also ensures that the buffer_size is lower than the sze of the dataset
+                """
+                reasonable_size = 10000
+                reasonable_size = max(batch_size, reasonable_size)
+                return min(reasonable_size, len(videos_names*n_captions))
+
+            train_dataset = train_dataset.shuffle(get_shuffle_buffer_size(self._train_videos_names, self._n_captions_video))
+
         self._batch_size = batch_size
 
         batch_test = min(len(self._test_videos_names), 256)
 
         train_dataset = train_dataset.batch(self._batch_size)
         test_dataset = test_dataset.batch(batch_test)
-
-        if shuffle:
-            train_dataset = train_dataset.shuffle(len(self._train_videos_names))
-            test_dataset = test_dataset.shuffle(len(self._test_videos_names))
 
         data_iterator = tf.data.Iterator.from_structure(test_dataset.output_types,
                                                         train_dataset.output_shapes)
@@ -270,6 +288,7 @@ def build_dataset(videos_names, features_n_frames, n_captions_per_video,
     flattened_captions_tokenized = token_handler.tokenize_captions(flattened_captions)
 
     # Dataset creation
+    # Note that len(caption_dataset) >= len(fatures_dataset)
     video_name_dataset = tf.data.Dataset.from_tensor_slices(videos_names)
 
     features_dataset = tf.data.Dataset.from_generator(
