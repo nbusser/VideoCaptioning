@@ -159,7 +159,7 @@ class ModelBuilder(object):
     def _prepare_datasets(self, train_dataset, test_dataset, batch_size, shuffle=True):
         self._batch_size = batch_size
 
-        batch_test = min(len(self._test_videos_names), 700)
+        batch_test = min(len(self._test_videos_names), 256)
 
         train_dataset = train_dataset.batch(self._batch_size)
         test_dataset = test_dataset.batch(batch_test)
