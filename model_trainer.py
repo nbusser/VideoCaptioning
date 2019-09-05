@@ -66,38 +66,41 @@ class ModelTrainer(ModelHandler):
                     batch_accuracy.append(accuracy_val)
 
                 except tf.errors.OutOfRangeError:
-
                     batch_loss = np.mean(batch_loss)
                     batch_accuracy = np.mean(batch_accuracy)
 
-                    if batch_loss < self._best_loss:
-                        self._best_loss = batch_loss
-                        countdown = max_countdown
-
-                        if self._model_saver is not None:
-                            self._saver.save(self._sess, self._model_saver.get_savefile_name())
-                            self._model_saver.save_model_json(self._model_builder, self._epoch,
-                                                              self._best_loss)
-                    else:
-                        countdown -= 1
 
                     # Inference time
                     self._sess.run(self._test_init_op)
 
+                    validation_loss = []
                     validation_accuracy = []
                     while True:
                         try:
-                            validation_acc_val = self._sess.run([self._accuracy])
+                            validation_loss_val, validation_acc_val = self._sess.run([self._loss, self._accuracy])
+                            validation_loss.append(validation_loss_val)
                             validation_accuracy.append(validation_acc_val)
                         except tf.errors.OutOfRangeError:
                             # End of inference
+                            validation_loss = np.mean(validation_loss)
                             validation_accuracy = np.mean(validation_accuracy)
+                    
+                            if validation_loss < self._best_loss:
+                                self._best_loss = validation_loss
+                                countdown = max_countdown
 
-                            print("Epoch {}/{} ; Batch loss: {:06f} ; Best loss: {:06f} ; Batch accuracy: {:05.2f}% ; Test accuracy: {:05.2f}% ; Time: {}s"
-                                .format(self._epoch, n_epochs, batch_loss, self._best_loss, batch_accuracy*100, validation_accuracy*100, int(time.time()-tick)))
+                                if self._model_saver is not None:
+                                    self._saver.save(self._sess, self._model_saver.get_savefile_name())
+                                    self._model_saver.save_model_json(self._model_builder, self._epoch,
+                                                              self._best_loss)
+                            else:
+                                countdown -= 1
+
+                            print("Epoch {}/{} ; Validation loss: {:06f} ; Best loss: {:06f} ; Batch loss: {:06f} ; Batch accuracy: {:05.2f}% ; Test accuracy: {:05.2f}% ; Time: {}s"
+                                .format(self._epoch+1, n_epochs, validation_loss, self._best_loss, batch_loss, batch_accuracy*100, validation_accuracy*100, int(time.time()-tick)))
 
                             break
+                    self._epoch = self._epoch + 1
                     break
-                self._epoch = self._epoch + 1
 
         print("{}/{} epochs made. Stop training".format(self._epoch, n_epochs))
