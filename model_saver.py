@@ -38,7 +38,7 @@ def restore_model(checkpoint_filename, video_retriever_generator,
     model = params["model"]
     builder.create_model(model["enc_units"], model["dec_units"], model["rnn_layers"],
                          model["embedding_dims"], model["learning_rate"],
-                         model["dropout_rate"])
+                         model["dropout_rate"], model["bi_encoder"])
 
     builder.prepare_training(params["batch_size"])
 

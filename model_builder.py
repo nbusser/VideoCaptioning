@@ -72,7 +72,7 @@ class ModelBuilder(object):
         self._accuracy = None
 
     def create_model(self, enc_units, dec_units, rnn_layers, embedding_dims,
-                     learning_rate, dropout_rate):
+                     learning_rate, dropout_rate, bi_encoder):
         """Creates a VideoCaptioningModel object
 
         Note that the only difference wth creating a VideoCaptionigModel is vocab_size, that we
@@ -85,10 +85,11 @@ class ModelBuilder(object):
         embedding_dims -- size of the embedding
         learning_rate -- start learning rate used in adam optimizer
         dropout_rate -- probability to dropout in encoder
+        bi_encoder -- boolean telling if the model should use a bi-directional encoder or not
         """
         self._model = VideoCaptioningModel(enc_units, dec_units, rnn_layers,
                                            self._token_handler.get_vocab_size(),
-                                           embedding_dims, learning_rate, dropout_rate)
+                                           embedding_dims, learning_rate, dropout_rate, bi_encoder)
 
 
     def prepare_training(self, batch_size, shuffle=True):

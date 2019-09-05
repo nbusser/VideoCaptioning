@@ -6,8 +6,8 @@ import tensorflow as tf
 class VideoCaptioningModel(object):
     """This class is used to create a video captioning neural network"""
 
-    def __init__(self, enc_units, dec_units, rnn_layers,
-                 vocab_size, embedding_dims, learning_rate, dropout_rate):
+    def __init__(self, enc_units, dec_units, rnn_layers, vocab_size, embedding_dims, learning_rate, 
+                 dropout_rate, bi_encoder):
         """Keyword arguments:
         enc_units -- number of units in the encoder
         dec_units -- number of units in the decoder
@@ -16,7 +16,12 @@ class VideoCaptioningModel(object):
         embedding_dims -- size of the embedding
         learning_rate -- start learning rate used in adam optimizer
         dropout_rate -- probability to dropout in encoder
+        bi_encoder -- boolean telling if the model should use a bi-directional encoder or not
         """
+
+        if bi_encoder and enc_units % 2 != 0:
+            raise ValueError("Encoder units ({}) must be divisible by 2 when using bi-directional encoder"
+                             .format(enc_units, rnn_layers))
 
         self._enc_units = enc_units
         self._dec_units = dec_units
@@ -25,6 +30,7 @@ class VideoCaptioningModel(object):
         self._embedding_dims = embedding_dims
         self._learning_rate = learning_rate
         self._dropout_rate = dropout_rate
+        self._bi_encoder = bi_encoder
 
     def _encoder(self, input_features, videos_lengths):
         """Encoder part of the seq2seq network
@@ -42,34 +48,46 @@ class VideoCaptioningModel(object):
                 cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=keep_rate)
                 return cell
 
-            # Creating the forward and backward states
-            forward_cell = tf.nn.rnn_cell.MultiRNNCell(
-                [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
-                 for _ in range(self._rnn_layers)])
+            # Bi-directional encoder
+            if self._bi_encoder:
+                # Creating the forward and backward states
+                forward_cell = tf.nn.rnn_cell.MultiRNNCell(
+                    [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
+                     for _ in range(self._rnn_layers)])
 
-            backward_cell = tf.nn.rnn_cell.MultiRNNCell(
-                [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
-                 for _ in range(self._rnn_layers)])
+                backward_cell = tf.nn.rnn_cell.MultiRNNCell(
+                    [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
+                     for _ in range(self._rnn_layers)])
 
-            bi_outputs, bi_state = tf.nn.bidirectional_dynamic_rnn(
-                forward_cell, backward_cell, input_features, sequence_length=videos_lengths,
-                time_major=False, dtype=tf.float32)
+                bi_outputs, bi_state = tf.nn.bidirectional_dynamic_rnn(
+                    forward_cell, backward_cell, input_features, sequence_length=videos_lengths,
+                    time_major=False, dtype=tf.float32)
 
-            # Merging forward and backward encoder outputs
-            encoder_outputs = tf.concat(bi_outputs, -1)
+                # Merging forward and backward encoder outputs
+                encoder_outputs = tf.concat(bi_outputs, -1)
 
-            # Merging forward and backward encoder states
-            final_state = []
-            for layer_id in range(self._rnn_layers):
-                state_fw = bi_state[0][layer_id] # forward state for this layer
-                state_bw = bi_state[1][layer_id] # backward state for this layer
+                # Merging forward and backward encoder states
+                final_state = []
+                for layer_id in range(self._rnn_layers):
+                    state_fw = bi_state[0][layer_id] # forward state for this layer
+                    state_bw = bi_state[1][layer_id] # backward state for this layer
 
-                cell_state = tf.concat([state_fw.c, state_bw.c], 1) # merging cell state
-                hidden_state = tf.concat([state_fw.h, state_bw.h], 1) # merging hidden_state
-                state = tf.nn.rnn_cell.LSTMStateTuple(c=cell_state, h=hidden_state)
+                    cell_state = tf.concat([state_fw.c, state_bw.c], 1) # merging cell state
+                    hidden_state = tf.concat([state_fw.h, state_bw.h], 1) # merging hidden_state
+                    state = tf.nn.rnn_cell.LSTMStateTuple(c=cell_state, h=hidden_state)
 
-                final_state.append(state)
-            final_state = tuple(final_state)
+                    final_state.append(state)
+                final_state = tuple(final_state)
+
+            # Uni-directional encoder
+            else:
+                encoder_gru_cell = tf.nn.rnn_cell.MultiRNNCell(
+                    [make_cell(self._enc_units, keep_rate=1-self._dropout_rate)
+                     for _ in range(self._rnn_layers)])
+
+                encoder_outputs, final_state = tf.nn.dynamic_rnn(encoder_gru_cell, input_features,
+                                                                 dtype=tf.float32,
+                                                                 sequence_length=videos_lengths)
 
         return encoder_outputs, final_state
 
@@ -263,9 +281,11 @@ class VideoCaptioningModel(object):
             'vocab_size': self._vocab_size,
             'embedding_dims': self._embedding_dims,
             'learning_rate': self._learning_rate,
-            'dropout_rate': self._dropout_rate
+            'dropout_rate': self._dropout_rate,
+            'bi_encoder': self._bi_encoder
         }
         return model_infos
+
 
 def preprocess_targets(targets, start_token):
     """This function preprocesses targets before feeding it to the decoder"""
