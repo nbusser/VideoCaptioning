@@ -75,8 +75,16 @@ class ModelBuilder(object):
                      learning_rate, dropout_rate):
         """Creates a VideoCaptioningModel object
 
-        Note that the only difference is vocab_size, that we retrieve from the
-        previously created TokenizationHandler
+        Note that the only difference wth creating a VideoCaptionigModel is vocab_size, that we
+        retrieve from the previously created TokenizationHandler
+
+        Keyword arguments:
+        enc_units -- number of units in the encoder
+        dec_units -- number of units in the decoder
+        rnn_layers -- number of layers in encoder and decoder
+        embedding_dims -- size of the embedding
+        learning_rate -- start learning rate used in adam optimizer
+        dropout_rate -- probability to dropout in encoder
         """
         self._model = VideoCaptioningModel(enc_units, dec_units, rnn_layers,
                                            self._token_handler.get_vocab_size(),
