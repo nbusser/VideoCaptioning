@@ -36,29 +36,42 @@ class VideoCaptioningModel(object):
                           Tensor [batch_size] shaped"""
 
         with tf.name_scope("encoder"):
-            """
-            forward_cell = tf.nn.rnn_cell.BasicLSTMCell(enc_units)
-            backward_cell = tf.nn.rnn_cell.BasicLSTMCell(enc_units)
-
-            bi_outputs, hidden_state = tf.nn.bidirectional_dynamic_rnn(
-                forward_cell, backward_cell, input_features, sequence_length=tf.fill([tf.shape(input_features)[0]], n_frames), time_major=False, dtype=tf.float32)
-            encoder_outputs = tf.concat(bi_outputs, -1)
-            """
-
             def make_cell(rnn_size, keep_rate=1.0):
                 """This function creates a basic cell. Used for creating several layers"""
                 cell = tf.nn.rnn_cell.BasicLSTMCell(rnn_size)
                 cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=keep_rate)
                 return cell
 
-            encoder_gru_cell = tf.nn.rnn_cell.MultiRNNCell(
-                [make_cell(self._enc_units, keep_rate=1-self._dropout_rate)
+            # Creating the forward and backward states
+            forward_cell = tf.nn.rnn_cell.MultiRNNCell(
+                [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
                  for _ in range(self._rnn_layers)])
 
-            encoder_outputs, hidden_state = tf.nn.dynamic_rnn(
-                encoder_gru_cell, input_features, dtype=tf.float32, sequence_length=videos_lengths)
+            backward_cell = tf.nn.rnn_cell.MultiRNNCell(
+                [make_cell(self._enc_units/2, keep_rate=1-self._dropout_rate)
+                 for _ in range(self._rnn_layers)])
 
-        return encoder_outputs, hidden_state
+            bi_outputs, bi_state = tf.nn.bidirectional_dynamic_rnn(
+                forward_cell, backward_cell, input_features, sequence_length=videos_lengths,
+                time_major=False, dtype=tf.float32)
+
+            # Merging forward and backward encoder outputs
+            encoder_outputs = tf.concat(bi_outputs, -1)
+
+            # Merging forward and backward encoder states
+            final_state = []
+            for layer_id in range(self._rnn_layers):
+                state_fw = bi_state[0][layer_id] # forward state for this layer
+                state_bw = bi_state[1][layer_id] # backward state for this layer
+
+                cell_state = tf.concat([state_fw.c, state_bw.c], 1) # merging cell state
+                hidden_state = tf.concat([state_fw.h, state_bw.h], 1) # merging hidden_state
+                state = tf.nn.rnn_cell.LSTMStateTuple(c=cell_state, h=hidden_state)
+
+                final_state.append(state)
+            final_state = tuple(final_state)
+
+        return encoder_outputs, final_state
 
 
     def _decoder(self, target, hidden_state, encoder_outputs, caption_lengths,
