@@ -19,7 +19,7 @@ class Category(Enum):
     TV = 6
     MOVIE = 7
     ANIMATION = 8
-    VEHICULES = 9
+    VEHICLES = 9
     HOWTO = 10
     TRAVEL = 11
     SCIENCE = 12
